@@ -1,3 +1,4 @@
+use dashmap::DashMap;
 use rand::Rng;
 use redis::streams::StreamReadReply;
 use redis::{cmd, Commands, RedisResult};
@@ -103,12 +104,12 @@ pub async fn process_using_redis_consumer_groups(
 ) -> Result<(), Box<dyn Error>> {
     let client = redis::Client::open("redis://127.0.0.1/")?;
 
-    let mut partitioned_account_groups: Vec<Arc<RwLock<HashMap<u16, Arc<Mutex<Account>>>>>> =
+    let mut partitioned_account_groups: Vec<Arc<DashMap<u16, Arc<Mutex<Account>>>>> =
         Vec::with_capacity(num_partitions);
 
     // push a group of partition of accounts to the groups
     for _ in 0..num_partitions {
-        partitioned_account_groups.push(Arc::new(RwLock::new(HashMap::new())));
+        partitioned_account_groups.push(Arc::new(DashMap::new()));
     }
 
     let client_arc = Arc::new(client);
@@ -137,7 +138,7 @@ pub async fn process_using_redis_consumer_groups(
             let consumer_name = format!("{}_worker_{}", consumer_name, worker_id);
             let client_clone = Arc::clone(&client_arc);
 
-            let accounts: Arc<RwLock<HashMap<u16, Arc<Mutex<Account>>>>> =
+            let accounts: Arc<DashMap<u16, Arc<Mutex<Account>>>> =
                 Arc::clone(&partitioned_account_groups[partition_index]);
 
             tokio::spawn(async move {
@@ -169,29 +170,44 @@ pub async fn process_using_redis_consumer_groups(
                         Ok(reply) => {
                             for stream_key in reply.keys {
                                 for message in stream_key.ids {
-                                    let tx_data: String = message.get("data").unwrap();
-                                    let tx: Transaction = serde_json::from_str(&tx_data).unwrap();
-
-                                    // This is interesting
-                                    // using the RwLock, I am limiting locking the partition to ONLY writes of new accounts
-                                    // while also allowing reads to be concurrent
-                                    let account_mutex = {
-                                        let read_accounts = accounts.read().await;
-                                        if let Some(account_mutex) =
-                                            read_accounts.get(&tx.account_id)
-                                        {
-                                            Arc::clone(account_mutex)
-                                        } else {
-                                            drop(read_accounts);
-                                            let mut write_accounts = accounts.write().await;
-                                            write_accounts
-                                                .entry(tx.account_id)
-                                                .or_insert_with(|| {
-                                                    Arc::new(Mutex::new(Account::new()))
-                                                })
-                                                .clone()
+                                    let tx_data: String = match message.get::<String>("data") {
+                                        Some(data) => data.to_string(),
+                                        None => {
+                                            return Err::<String, _>(
+                                                "No tx data in stream".to_string(),
+                                            )
                                         }
                                     };
+
+                                    let tx: Transaction = serde_json::from_str(&tx_data).unwrap();
+
+                                    // This WAS interesting
+                                    // using the RwLock, I am limiting locking the partition to ONLY writes of new accounts
+                                    // while also allowing reads to be concurrent
+                                    // The problem with it was that it introduced a small change that between dropping the read and acquiring the write another worker could do the same
+                                    // let account_mutex = {
+                                    //     let read_accounts = accounts.read().await;
+                                    //     if let Some(account_mutex) =
+                                    //         read_accounts.get(&tx.account_id)
+                                    //     {
+                                    //         Arc::clone(account_mutex)
+                                    //     } else {
+                                    //         drop(read_accounts);
+                                    //         let mut write_accounts = accounts.write().await;
+                                    //         write_accounts
+                                    //             .entry(tx.account_id)
+                                    //             .or_insert_with(|| {
+                                    //                 Arc::new(Mutex::new(Account::new()))
+                                    //             })
+                                    //             .clone()
+                                    //     }
+                                    // };
+
+                                    // Dashmap solves the above problem
+                                    let account_mutex = accounts
+                                        .entry(tx.account_id)
+                                        .or_insert_with(|| Arc::new(Mutex::new(Account::new())))
+                                        .clone();
 
                                     // Lock the account
                                     let account = account_mutex.lock().await;
@@ -211,8 +227,7 @@ pub async fn process_using_redis_consumer_groups(
                             }
                         }
                         Err(e) => {
-                            eprintln!("Error reading from Redis stream: {}", e);
-                            break;
+                            return Err(format!("Error reading from Redis stream: {}", e));
                         }
                     }
 
