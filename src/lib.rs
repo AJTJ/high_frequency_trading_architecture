@@ -106,6 +106,7 @@ pub async fn process_using_redis_consumer_groups(
     let mut partitioned_account_groups: Vec<Arc<RwLock<HashMap<u16, Arc<Mutex<Account>>>>>> =
         Vec::with_capacity(num_partitions);
 
+    // push a group of partition of accounts to the groups
     for _ in 0..num_partitions {
         partitioned_account_groups.push(Arc::new(RwLock::new(HashMap::new())));
     }
@@ -130,7 +131,7 @@ pub async fn process_using_redis_consumer_groups(
                 .unwrap_or(());
         }
 
-        // Create four workers
+        // Create four workers per partition
         for worker_id in 0..4 {
             let stream_name = stream_name.clone();
             let consumer_name = format!("{}_worker_{}", consumer_name, worker_id);
@@ -164,7 +165,6 @@ pub async fn process_using_redis_consumer_groups(
                         .query_async(&mut con)
                         .await; // Execute the command
 
-                    println!("after resdis thing");
                     match res {
                         Ok(reply) => {
                             for stream_key in reply.keys {
@@ -172,6 +172,9 @@ pub async fn process_using_redis_consumer_groups(
                                     let tx_data: String = message.get("data").unwrap();
                                     let tx: Transaction = serde_json::from_str(&tx_data).unwrap();
 
+                                    // This is interesting
+                                    // using the RwLock, I am limiting locking the partition to ONLY writes of new accounts
+                                    // while also allowing reads to be concurrent
                                     let account_mutex = {
                                         let read_accounts = accounts.read().await;
                                         if let Some(account_mutex) =
@@ -196,7 +199,7 @@ pub async fn process_using_redis_consumer_groups(
                                     // Process the transaction
                                     process_transaction_from_mutex_guard(tx, account).await;
 
-                                    // Acknowledge the message
+                                    // Acknowledge the message to redis
                                     let _: () = redis::cmd("XACK")
                                         .arg(&stream_name)
                                         .arg(&consumer_group_name)
