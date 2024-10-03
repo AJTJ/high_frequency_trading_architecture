@@ -1,6 +1,9 @@
 # What is this?
 It's some experiments into how I would begin to think about a high frequency trading platform.
 
+## Main takeaway
+Using the power of consumer groups, a concept common to redis, kafka and other messaging services, you are able to maintain message ordering while also ensuring account-level consistency.
+
 ## What's happening?
 Given a set of transactions, how would you create an intermediary rust solution (one service) before going fully distributed?
 Go check out `main.rs` for some of my experiments. And jump into the `lib.rs` for the code.
