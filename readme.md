@@ -1,5 +1,5 @@
-# What is this?
-It's some experiments into how I would begin to think about a high frequency trading platform.
+# Description
+Experiments into how I would begin to think about a high frequency trading platform.
 
 ## Main takeaway
 Using the power of consumer groups, a concept common to redis, kafka and other messaging services, you are able to maintain message ordering while also ensuring account-level consistency.
