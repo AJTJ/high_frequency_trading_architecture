@@ -1,7 +1,7 @@
 use exchange_v2::{
     process_using_mpsc::process_transactions_using_mpsc,
+    process_using_redis_consumer_groups::process_using_redis_consumer_groups,
     process_using_single_consumer::process_using_redis_single_consumer,
-    redis_consumer_groups::process_using_redis_consumer_groups,
 };
 
 #[tokio::main]
