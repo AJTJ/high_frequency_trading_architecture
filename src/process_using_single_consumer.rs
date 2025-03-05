@@ -4,18 +4,16 @@ use redis::{Commands, RedisResult};
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::Mutex;
-use tokio::time::sleep;
 
 use crate::account_and_transaction::{
     process_transaction_from_arc, receive_transaction, Account, Transaction,
 };
+use crate::redis_consumer_groups::config::NUM_PARTITIONS;
 use crate::redis_utils::get_redis_client;
 
-pub async fn process_using_redis_single_consumer(
-    num_partitions: usize,
-) -> Result<(), Box<dyn Error>> {
+pub async fn process_using_redis_single_consumer() -> Result<(), Box<dyn Error>> {
+    let num_partitions = NUM_PARTITIONS;
     let mut partitioned_account_groups: Vec<Arc<Mutex<HashMap<u16, Account>>>> =
         Vec::with_capacity(num_partitions);
 

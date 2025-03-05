@@ -1,20 +1,19 @@
 # Description
-Experiments into how I would begin to think about a high frequency trading platform.
+Experiments into how I would begin to architect a high frequency trading platform.
+
+## The goal
+Given a set of incoming transactions, how would I build a single modular service that has high thoroughput while ensuring message ordering and account-level consistency.
+
+## The outcome
+I found that using Redis consumer groups in the POC illustrated how the architecture would transition nicely into a Kafka system.
 
 ## Main takeaway
-Using the power of consumer groups, a concept common to redis, kafka and other messaging services, you are able to maintain message ordering while also ensuring account-level consistency.
+Using the power of consumer groups, a concept common to redis, kafka and other messaging services, I am able to maintain message ordering while also ensuring account-level consistency.
 
-## What's happening?
-Given a set of transactions, how would you create an intermediary rust solution (one service) before going fully distributed?
-Go check out `main.rs` for some of my experiments. And jump into the `lib.rs` for the code.
-
-## Did I achieve all of the following ideal goals?
-No, but I built out the scaffolding for the architecture spefically in terms of achieving a high level of concurrency while maintaining account-level consistency.
-
-# Ideal goals
+# Future Scaling plan:
 
 ## Input and Queuing
-First off, the reception of transactions from a TCP stream or API could be handled by an asynchronous service responsible for enqueuing transactions sequentially (in order received) in a dedicated in-memory queue. This decouples the I/O bound receiving phase from the CPU-bound processing phase improving throughput.
+The reception of transactions from a TCP stream or API could be handled by an asynchronous service responsible for enqueuing transactions sequentially (in order received) in a dedicated in-memory queue. This decouples the I/O bound receiving phase from the CPU-bound processing phase, thus improving throughput.
 I would also consider sharding by Account ID for each queue. So, rather than having a single queue for all transactions we would have multiple queues, each dedicated to a subset of Account IDs. This removes the single queue as a potential bottleneck.
 
 ## Processing
@@ -27,11 +26,7 @@ To reduce the overhead of many database writes, each worker could batch account 
 ## Fault tolerance and latency
 Fault tolerance and latency are crucial. And a crash could cause data loss. I'd ensure that the queue(s) is durable and supports persistence or replication to disk. Implementing retry logic and backpressure maintenance would ensure that no transactions are dropped or processed out of order due to system failures or delays.
 
-## Scalability
-The nice thing about this setup is that segues nicely into future scaling. The worker pool (and queues) could be expanded across multiple servers or nodes with minimal changes to the core architecture. It would also be a fairly seamless transition to using Kafka. 
-
-## Is there a simpler way? Yea sure.
-There are certainly simpler versions of this that I could list.
+# Is there a simpler way? Yea sure.
 
 A very simple multi-threaded version would be to wrap a Mutex around each account. The mutex lock would avoid any race conditions and maintain account-level consistency. Mutexes are blocking constructs though, and will force threads to wait for the mutex to be released. This leads to contention and performance bottlenecks. Deadlocks might also occur if you are not careful.
 

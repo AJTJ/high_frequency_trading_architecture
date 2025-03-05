@@ -9,8 +9,10 @@ use tokio::time::sleep;
 use crate::account_and_transaction::{
     process_transaction_from_arc, receive_transaction, Account, Transaction,
 };
+use crate::redis_consumer_groups::config::NUM_PARTITIONS;
 
-pub async fn process_transactions_using_mpsc(num_partitions: usize) {
+pub async fn process_transactions_using_mpsc() {
+    let num_partitions = NUM_PARTITIONS;
     // Create channels for each partitioned
     // mpsc is the current in-memory message passing channel
     // it ti
