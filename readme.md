@@ -2,7 +2,7 @@
 Experiments into how I would begin to architect a high frequency trading platform.
 
 ## The goal
-Given a set of incoming transactions, how would I build a single modular service that has high thoroughput while ensuring message ordering and account-level consistency.
+Given a set of incoming transactions, how would I build a single modular service that has high throughput while ensuring message ordering and account-level consistency.
 
 ## The outcome
 TLDR, Go to `main.rs` to begin exploring the code.
