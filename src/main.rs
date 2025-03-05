@@ -1,6 +1,8 @@
 use exchange_v2::{
-    process_using_mpsc::process_transactions_using_mpsc,
-    process_using_single_consumer::process_using_redis_single_consumer,
+    previous_experiments::{
+        process_using_mpsc::process_transactions_using_mpsc,
+        process_using_single_consumer::process_using_redis_single_consumer,
+    },
     redis_consumer_groups::{
         queue_management::{start_consumer_groups, RedisClientArc},
         transaction_ingestion::transaction_ingestion,
@@ -37,10 +39,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let client = get_redis_client()?;
     let client_arc: RedisClientArc = Arc::new(client);
+
+    // create the consumer groups once
+    // EVENTUAL TODO: move to globally shared static for easy horizontal scaling
     start_consumer_groups(client_arc.clone()).await?;
 
+    // EVENTUAL TODO: Create an actual stream of incoming mock transactions
     let transactions: Vec<Transaction> = (0..20).map(|_| generate_transaction()).collect();
 
+    // EVENTUAL TODO: Turn this into a running service that accepts a stream of transations
     transaction_ingestion(transactions, client_arc.clone()).await?;
 
     //

@@ -40,13 +40,14 @@ pub async fn start_consumer_groups(client_arc: RedisClientArc) -> Result<(), Box
         create_redis_consumer_group(&stream_name.0, &consumer_group_name.0, &client_arc).await?;
 
         // Create workers per partition
-        for _ in 0..WORKER_PER_PARTITION {
+        for worker_id in 0..WORKER_PER_PARTITION {
             tokio::spawn(process_transaction_worker(
                 stream_name.clone(),
                 consumer_group_name.clone(),
                 consumer_name.clone(),
                 client_arc.clone(),
                 (&partitioned_account_groups[partition_index]).clone(),
+                worker_id,
             ));
         }
     }
@@ -60,7 +61,12 @@ async fn process_transaction_worker(
     consumer_name: ConsumerName,
     client_clone: RedisClientArc,
     accounts: Arc<DashMap<u16, Arc<Mutex<Account>>>>,
+    worker_id: usize,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    println!(
+        "Starting worker {} for partition {}",
+        worker_id, stream_name.0
+    );
     let mut con = client_clone
         .get_multiplexed_async_connection()
         .await
@@ -89,7 +95,13 @@ async fn process_transaction_worker(
                             }
                         };
 
-                        let tx: Transaction = serde_json::from_str(&tx_data).unwrap();
+                        let tx: Transaction = match serde_json::from_str(&tx_data) {
+                            Ok(tx) => tx,
+                            Err(err) => {
+                                eprintln!("Failed to deserialize transaction: {}", err);
+                                continue;
+                            }
+                        };
 
                         // This WAS interesting
                         // using the RwLock, I am limiting locking the partition to ONLY writes of new accounts
