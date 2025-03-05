@@ -33,6 +33,7 @@ pub fn generate_transaction() -> Transaction {
 async fn main() -> Result<(), Box<dyn Error>> {
     //
     // Redis with consuper groups.
+    // The most robust experiment so far.
     //
     // NOTE: you would need to flush data between runs:
     // `redis-cli FLUSHALL`
@@ -40,7 +41,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let client = get_redis_client()?;
     let client_arc: RedisClientArc = Arc::new(client);
 
-    // create the consumer groups once
     // EVENTUAL TODO: move to globally shared static for easy horizontal scaling
     start_consumer_groups(client_arc.clone()).await?;
 
@@ -51,7 +51,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     transaction_ingestion(transactions, client_arc.clone()).await?;
 
     //
-    // The following were earlier experiments:
+    // Earlier experiments.
+    // i.e. not as good
     //
 
     // FIRST EXPERIMENT. using mpsc

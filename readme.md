@@ -5,6 +5,7 @@ Experiments into how I would begin to architect a high frequency trading platfor
 Given a set of incoming transactions, how would I build a single modular service that has high thoroughput while ensuring message ordering and account-level consistency.
 
 ## The outcome
+TLDR, Go to `main.rs` to begin exploring the code.
 I found that using Redis consumer groups in this POC illustrated how the architecture would transition nicely into a Kafka system. Separating servicers into `transaction_ingestion`, `queue_management` and `transaction_processing` sets the stage for a more fine-grained separation of concerns.
 
 ## Main takeaway
