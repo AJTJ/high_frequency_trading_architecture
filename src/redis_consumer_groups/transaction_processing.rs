@@ -3,6 +3,7 @@ use tokio::sync::MutexGuard;
 
 use super::tx_models::{Account, Transaction, TransactionType};
 
+// This is naive, and serves simply to prove the system
 pub async fn process_transaction_from_mutex_guard(
     tx: Transaction,
     mut account: MutexGuard<'_, Account>,
